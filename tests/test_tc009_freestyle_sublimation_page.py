@@ -74,12 +74,17 @@ class TestTC009FreeStyleSublimationPage:
         base_url = env_config["url"].rstrip('/')
         sublimation_url = f"{base_url}/FreeStyleSublimationView?catalogId=10601&storeId=10251&langId=-1"
         
-        # Phase 4 Validation: Navigate directly as an authenticated user
-        # Avoids repeated Login/Logout
+        # Navigate to home first to stabilize session cookies, then target URL
+        auth_page_tc009.goto(env_config["url"])
+        auth_page_tc009.wait_for_load_state("domcontentloaded")
         auth_page_tc009.goto(sublimation_url)
         
         # Wait for page to reach a stable state to prevent flakiness
-        auth_page_tc009.wait_for_load_state("networkidle", timeout=20000)
+        try:
+            auth_page_tc009.wait_for_load_state("networkidle", timeout=15000)
+        except Exception:
+            pass
+        auth_page_tc009.wait_for_load_state("domcontentloaded")
         
         # Assert navigation was successful by checking for a specific element or URL
         expect(auth_page_tc009).to_have_url(re.compile(".*FreeStyleSublimationView.*", re.IGNORECASE), timeout=15000)

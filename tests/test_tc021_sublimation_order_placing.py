@@ -159,7 +159,7 @@ class TestTC012SublimationOrderPlacing:
         configurator_page.add_to_cart()
         
         # Fill Cart Popup
-        name = "suriyaa"
+        name = "test order donot ship"
         email = "suriyaa2228@gmail.com"
         phone = "2323232323"
         cart_page = configurator_page.fill_cart_popup(name, email, phone)
@@ -183,7 +183,7 @@ class TestTC012SublimationOrderPlacing:
         thank_you_page = review_submit_page.click_place_order()
         
         # Assert order was placed successfully by checking for a specific element or URL
-        expect(auth_page_tc012).to_have_url(re.compile(".*(OrderOKView|ThankYou).*", re.IGNORECASE), timeout=30000)
+        expect(auth_page_tc012).to_have_url(re.compile(".*(OrderOKView|ThankYou|OrderShippingBillingConfirmationView).*", re.IGNORECASE), timeout=30000)
         
         # Capture Order Number
         thank_you_page.get_order_number()

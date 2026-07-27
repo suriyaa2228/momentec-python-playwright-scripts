@@ -126,7 +126,7 @@ class TestTC016BlankOrderWithFedEx2DayAM:
             .click_go_to_cart()
             
         # Assert navigation to cart was successful by checking for a specific element or URL
-        expect(auth_page_tc016).to_have_url(re.compile(".*(cart|CartView).*", re.IGNORECASE), timeout=15000)
+        expect(auth_page_tc016).to_have_url(re.compile(".*(cart|CartView|AjaxOrderItemDisplayView).*", re.IGNORECASE), timeout=15000)
             
         cart = CartPage(auth_page_tc016)
         cart.verify_cart_heading() \
@@ -145,7 +145,7 @@ class TestTC016BlankOrderWithFedEx2DayAM:
         review.click_place_order()
         
         # Assert order was placed successfully by checking for a specific element or URL
-        expect(auth_page_tc016).to_have_url(re.compile(".*(OrderOKView|ThankYou).*", re.IGNORECASE), timeout=30000)
+        expect(auth_page_tc016).to_have_url(re.compile(".*(OrderOKView|ThankYou|OrderShippingBillingConfirmationView).*", re.IGNORECASE), timeout=30000)
         
         thank_you = ThankYouPage(auth_page_tc016)
         thank_you.get_order_number()

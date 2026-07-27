@@ -136,7 +136,7 @@ class TestTC014BlankPLPValidation:
             auth_page_tc014.wait_for_timeout(3000)
             
             # Assert navigation to cart was successful by checking for a specific element or URL
-            expect(auth_page_tc014).to_have_url(re.compile(".*(cart|CartView).*", re.IGNORECASE), timeout=15000)
+            expect(auth_page_tc014).to_have_url(re.compile(".*(cart|CartView|AjaxOrderItemDisplayView).*", re.IGNORECASE), timeout=15000)
             
             # Verify Cart page, clear it and navigate back to Home
             cart.verify_cart_heading()

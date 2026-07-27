@@ -1,5 +1,5 @@
 # 1. Navigate to URL and accept cookie banner
-# 2. Verify home page
+# 2. Click Brand Logo and verify home page
 # 3. Search for product "295000"
 # 4. Verify search product in PDP page
 # 5. Select color black
@@ -13,9 +13,16 @@
 # 13. Verify Shipping and Billing page
 # 14. Click Shipping Methods dropdown
 # 15. Select FedEx Ground shipping method
-# 16. Click Review and Submit
-# 17. Click Place Order on Review Submit page
-# 18. Get order number from Thank You page
+# 16. Verify FedEx Ground charge
+# 17. Navigate back to cart
+# 18. Update quantity in cart to "120"
+# 19. Click Checkout
+# 20. Verify Shipping and Billing page
+# 21. Click Shipping Methods dropdown
+# 22. Select FedEx Ground shipping method
+# 23. Verify FedEx Ground is free
+# 24. Navigate back to cart
+# 25. Clear cart
 
 import pytest
 import os
@@ -25,11 +32,9 @@ from python_playwright.pages.home_page import HomePage
 from python_playwright.pages.pdp_page import PDPPage
 from python_playwright.pages.cart_page import CartPage
 from python_playwright.pages.shipping_billing_page import ShippingAndBillingPage
-from python_playwright.pages.review_submit_page import ReviewSubmitPage
-from python_playwright.pages.thank_you_page import ThankYouPage
 
 @pytest.fixture(scope="class")
-def auth_context_tc006(request, env_config, browser_instance):
+def auth_context_tc004(request, env_config, browser_instance):
     """
     Session Reuse (Mandatory): Logs in once and reuses session using Storage State.
     If storage state does not exist, authenticates and creates it.
@@ -38,10 +43,12 @@ def auth_context_tc006(request, env_config, browser_instance):
     username = env_config["username"]
     password = env_config["password"]
     
+    # Store the authenticated state securely
     config_dir = os.path.join(os.path.dirname(__file__), "..", "config")
     os.makedirs(config_dir, exist_ok=True)
-    state_file = os.path.join(config_dir, "tc006_state.json")
+    state_file = os.path.join(config_dir, "tc004_state.json")
 
+    # If the state file doesn't exist, we must authenticate via UI first
     if not os.path.exists(state_file):
         temp_context = browser_instance.new_context(ignore_https_errors=True)
         temp_page = temp_context.new_page()
@@ -51,14 +58,14 @@ def auth_context_tc006(request, env_config, browser_instance):
         home.handle_onetrust_cookie()
         # Clear cart to ensure no backordered items are present
         try:
-            auth_page_tc006.goto(url + "AjaxOrderItemDisplayView?catalogId=10601&langId=-1&storeId=10251")
+            auth_page_tc004.goto(url + "AjaxOrderItemDisplayView?catalogId=10601&langId=-1&storeId=10251")
             from python_playwright.pages.cart_page import CartPage
-            cart = CartPage(auth_page_tc006)
+            cart = CartPage(auth_page_tc004)
             cart.clear_cart()
         except Exception:
             pass
         
-        auth_page_tc006.goto(url)
+        auth_page_tc004.goto(url)
 
         login_page = home.verify_home_page().click_login()
         login_page.enter_username(username) \
@@ -72,6 +79,7 @@ def auth_context_tc006(request, env_config, browser_instance):
         temp_page.close()
         temp_context.close()
 
+    # Create a new context pre-hydrated with the authenticated storage state
     context = browser_instance.new_context(
         storage_state=state_file,
         ignore_https_errors=True
@@ -81,39 +89,44 @@ def auth_context_tc006(request, env_config, browser_instance):
     context.close()
 
 @pytest.fixture(scope="class")
-def auth_page_tc006(auth_context_tc006):
-    page = auth_context_tc006.new_page()
+def auth_page_tc004(auth_context_tc004):
+    """
+    Yields a single page within the authenticated context for the entire class execution.
+    """
+    page = auth_context_tc004.new_page()
     yield page
     page.close()
 
-@pytest.mark.usefixtures("auth_page_tc006")
-class TestTC006VerifyBlankOrder:
-    def test_add_product_to_cart(self, auth_page_tc006, env_config):
+@pytest.mark.usefixtures("auth_page_tc004")
+class TestTC004VerifyShippingFedexGroundValidation:
+    def test_verify_shipping_charge(self, auth_page_tc004, env_config):
         from python_playwright.utils.reporter import Reporter
-        Reporter.start_test_case("TC006_VerifyBlankOrder", "Verify able to place order with blank order", "Smoke", "SURIYAA")
+        Reporter.start_test_case("TC004_VerifyShippingFedexGroundValidation", "Verify FEDEX Ground shipping is showing the correct price or not", "Smoke", "SURIYAA")
         
         url = env_config["url"]
         
-        auth_page_tc006.goto(url)
-        home = HomePage(auth_page_tc006, url)
+        auth_page_tc004.goto(url)
+        home = HomePage(auth_page_tc004, url)
         home.handle_onetrust_cookie()
         # Clear cart to ensure no backordered items are present
         try:
-            auth_page_tc006.goto(url + "AjaxOrderItemDisplayView?catalogId=10601&langId=-1&storeId=10251")
+            auth_page_tc004.goto(url + "AjaxOrderItemDisplayView?catalogId=10601&langId=-1&storeId=10251")
             from python_playwright.pages.cart_page import CartPage
-            cart = CartPage(auth_page_tc006)
+            cart = CartPage(auth_page_tc004)
             cart.clear_cart()
         except Exception:
             pass
         
-        auth_page_tc006.goto(url)
+        auth_page_tc004.goto(url)
 
         
-        # Already logged in, search product
-        home.verify_home_page() \
+        # Already logged in, just search product
+        home.click_brand_logo() \
+            .verify_home_page() \
             .search_product("295000")
             
-        pdp = PDPPage(auth_page_tc006)
+        # Product detail page actions
+        pdp = PDPPage(auth_page_tc004)
         pdp.verify_search_product() \
             .select_color_black() \
             .verify_place_holder("295000") \
@@ -123,26 +136,35 @@ class TestTC006VerifyBlankOrder:
             .click_go_to_cart()
             
         # Assert navigation to cart was successful by checking for a specific element or URL
-        expect(auth_page_tc006).to_have_url(re.compile(".*(cart|CartView).*", re.IGNORECASE), timeout=15000)
+        expect(auth_page_tc004).to_have_url(re.compile(".*(cart|CartView|AjaxOrderItemDisplayView).*", re.IGNORECASE), timeout=15000)
             
-        cart = CartPage(auth_page_tc006)
+        # Go to cart and click checkout
+        cart = CartPage(auth_page_tc004)
         cart.verify_cart_heading() \
             .click_checkout()
             
         # Assert navigation to shipping page was successful by checking for a specific element or URL
-        expect(auth_page_tc006).to_have_url(re.compile(".*(checkout|shipping|OrderShipping).*", re.IGNORECASE), timeout=15000)
+        expect(auth_page_tc004).to_have_url(re.compile(".*(checkout|shipping|OrderShipping).*", re.IGNORECASE), timeout=15000)
             
-        shipping = ShippingAndBillingPage(auth_page_tc006)
+        # Select FedEx Ground and verify charge (below threshold)
+        shipping = ShippingAndBillingPage(auth_page_tc004)
         shipping.verify_shipping_billing_page() \
             .click_shipping_methods_dd() \
             .select_fedex_ground_shipping_method() \
-            .click_review_and_submit()
+            .verify_fedex_ground_charge() \
+            .navigate_back_to_cart()
             
-        review = ReviewSubmitPage(auth_page_tc006)
-        review.click_place_order()
-        
-        # Assert order was placed successfully by checking for a specific element or URL
-        expect(auth_page_tc006).to_have_url(re.compile(".*(OrderOKView|ThankYou).*", re.IGNORECASE), timeout=30000)
-        
-        thank_you = ThankYouPage(auth_page_tc006)
-        thank_you.get_order_number()
+        # Update quantity in cart to exceed free shipping threshold
+        cart.update_qty_txt_fld("120") \
+            .click_checkout()
+            
+        # Select FedEx Ground and verify FREE shipping
+        shipping.verify_shipping_billing_page() \
+            .click_shipping_methods_dd() \
+            .select_fedex_ground_shipping_method() \
+            .verify_fedex_ground_free() \
+            .navigate_back_to_cart()
+            
+        # Clear cart for cleanliness
+        cart.clear_cart()
+

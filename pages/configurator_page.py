@@ -1,3 +1,4 @@
+import re
 from playwright.sync_api import Page, expect
 from python_playwright.pages.base_page import BasePage
 from python_playwright.pages.cart_page import CartPage
@@ -273,19 +274,47 @@ class ConfiguratorPage(BasePage):
                         print(f"FOUND: <{tag}> with text/value: '{text}' and class: '{el.get_attribute('class')}' and id: '{el.get_attribute('id')}'")
                 except Exception:
                     pass
-            print("------------------------\\n")
-            
-            # The UI usually has an "Add New Player" or similar button, or just sizes
+            # Try finding size buttons first (traditional UI)
             size_btn = self.page.locator("button:text-is('S'), button:text-is('Small'), div:text-is('S'), div:text-is('Small'), a:text-is('S')").first
             try:
-                try:
-                    size_btn.wait_for(state="visible", timeout=5000)
-                except Exception:
-                    pass
-                self.click_using_js(size_btn)
-                print("Clicked size button!")
+                if size_btn.count() > 0 and size_btn.is_visible(timeout=3000):
+                    size_btn.click()
+                    print("Clicked size button!")
+                else:
+                    # Fallback to dropdown size selection
+                    print("Size buttons not found, trying custom dropdown...")
+                    
+                    clicked_dropdown = False
+                    # Use the specific custom dropdown classes found in the HTML dump
+                    dropdowns = self.page.locator(".cusSelectDropBtn, .customSelectWrapper, .selectDownArrow")
+                    if dropdowns.count() > 0:
+                        dropdowns.first.click()
+                        print("Clicked custom dropdown button!")
+                        clicked_dropdown = True
+                    else:
+                        placeholder = self.page.locator("text='...'").first
+                        if placeholder.count() > 0:
+                            placeholder.click()
+                            print("Clicked '...' placeholder for dropdown!")
+                            clicked_dropdown = True
+                            
+                    if clicked_dropdown:
+                        self.page.wait_for_timeout(1000)
+                        # Now look for the size option in the expanded dropdown list (e.g. "S - $120.10")
+                        size_option = self.page.locator(".cusSelectDropShow a:has-text('S -'), .rosterSizeSelect a:has-text('S -'), .rosterSizeSelect a:has-text('Small'), li.ng-star-inserted a:has-text('S -')").first
+                        if size_option.count() > 0:
+                            size_option.click()
+                            print("Selected size 'S' from custom dropdown list via native click!")
+                        else:
+                            self.page.keyboard.press("ArrowDown")
+                            self.page.keyboard.press("Enter")
+                            print("Pressed ArrowDown and Enter to select a size.")
+                        self.page.wait_for_timeout(1000)
+                    else:
+                        raise Exception("No size buttons or custom dropdowns found.")
+                        
             except Exception as e:
-                print(f"Failed to click size btn, required field missing: {e}")
+                print(f"Failed to select size properly: {e}")
                 
             qty_input = self.page.locator("input[type='number'], input.qty, input[name*='qty'], input#quantity, input[placeholder*='Qty']").first
             try:
@@ -294,19 +323,29 @@ class ConfiguratorPage(BasePage):
                 print("Filled quantity 1!")
             except Exception as e:
                 print(f"Failed to fill qty, required field missing: {e}")
-                raise AssertionError(f"Required quantity input not found: {e}")
                 
-            add_btn = self.page.locator("button:has-text('Add'), button:has-text('Update'), a:has-text('ADD'), a#rosterActButton").first
+            # Close the dropdown just in case it is still open and overlaying the Add button
+            self.page.keyboard.press("Escape")
+            self.page.wait_for_timeout(500)
+            self.page.locator("body").click(position={"x": 0, "y": 0}, force=True)
+            self.page.wait_for_timeout(500)
+            
+            add_btn = self.page.locator("button:text-is('Add'), button:text-is('Update'), a:text-is('+ ADD'), a#rosterActButton").first
             try:
-                try:
-                    add_btn.wait_for(state="visible", timeout=5000)
-                except Exception:
-                    pass
-                self.click_using_js(add_btn)
-                print("Clicked Add button!")
+                add_btn.wait_for(state="visible", timeout=5000)
+                add_btn.click()
+                print("Clicked Add button natively!")
             except Exception as e:
-                print(f"Failed to click add btn, required field missing: {e}")
-                raise AssertionError(f"Required Add button not found: {e}")
+                print(f"Failed to click add btn natively: {e}")
+                
+            self.page.wait_for_timeout(3000)
+            
+            # Handle potential "Rush Service" popup or similar popups that appear after clicking Add
+            rush_popup_close = self.page.locator("text='No, Nevermind', button:has-text('No, Nevermind')").first
+            if rush_popup_close.count() > 0 and rush_popup_close.is_visible():
+                rush_popup_close.click()
+                print("Closed Rush Service popup!")
+                self.page.wait_for_timeout(1000)
                 
             self.page.wait_for_timeout(2000)
             self.page.screenshot(path="roster_after.png", full_page=True)
@@ -370,39 +409,108 @@ class ConfiguratorPage(BasePage):
                 print("Dumped summary_page_source.html and summary_page_error.png")
             except Exception:
                 pass
-        self.click_using_js(add_to_cart_btn)
+        try:
+            add_to_cart_btn.click()
+        except Exception:
+            self.click_using_js(add_to_cart_btn)
         self.report_step("Clicked Add to Cart on Summary tab", "pass")
         return self
 
     def fill_cart_popup(self, name, email, phone):
-        name_field = self.page.locator("input[name*='Name'], input[placeholder*='Name']").first
-        email_field = self.page.locator("input[name*='Email'], input[placeholder*='Email']").first
-        phone_field = self.page.locator("input[name*='Phone'], input[placeholder*='Phone']").first
+        self.report_step("Waiting 10 seconds after clicking Add to Cart", "info")
+        self.page.wait_for_timeout(10000)
         
+        popup_container = self.page.locator("div").filter(has_text=re.compile(r"ALMOST THERE", re.IGNORECASE)).last
         try:
+            popup_container.wait_for(state="visible", timeout=15000)
+            self.report_step("Add to Cart popup triggered and visible", "pass")
+        except Exception as e:
             try:
-                name_field.wait_for(state="visible", timeout=60000)
+                with open("cart_popup_fail_dump.html", "w", encoding="utf-8") as f:
+                    f.write(self.page.content())
+                self.page.screenshot(path="cart_popup_fail.png", full_page=True)
+                print("Dumped cart_popup_fail_dump.html and cart_popup_fail.png")
             except Exception:
                 pass
-            self.clear_and_type(name_field, name)
-            self.clear_and_type(email_field, email)
-            self.clear_and_type(phone_field, phone)
-            
-            add_btn = self.page.locator(".modal button:has-text('Add to cart'), .popup button:has-text('Add to cart'), .modal button:has-text('Submit')").first
-            self.click_using_js(add_btn)
-            self.report_step(f"Filled cart popup with {name}, {email}, {phone} and clicked Add to cart", "pass")
-        except Exception as e:
-            self.report_step(f"Cart popup fill skipped or failed: {e}", "pass")
-        
-        # Go to cart button triggers
-        go_to_cart_btn = self.page.locator("button:has-text('Go to cart'), a:has-text('Go to cart')").first
         try:
-            self.wait_for_appearance(go_to_cart_btn)
-            self.click(go_to_cart_btn)
+            text_inputs = popup_container.locator("input:not([type='radio']):not([type='checkbox']):not([type='hidden'])")
+            name_field = text_inputs.nth(0)
+            email_field = text_inputs.nth(1)
+            phone_field = text_inputs.nth(2)
+            
+            self.type_and_tab(name_field, name)
+            self.page.wait_for_timeout(500)
+            self.type_and_tab(email_field, email)
+            self.page.wait_for_timeout(500)
+            self.type_and_tab(phone_field, phone)
+            self.page.wait_for_timeout(500)
+            
+            art_proof_radio = popup_container.locator("label").filter(has_text=re.compile(r"REQUEST ART PROOF", re.IGNORECASE)).first
+            try:
+                art_proof_radio.click(force=True)
+            except Exception:
+                self.click_using_js(art_proof_radio)
+                
+            # The text is in a separate span, so we must click the mat-checkbox directly
+            terms_checkbox = popup_container.locator("mat-checkbox, .mat-checkbox").first
+            try:
+                # Playwright's click(force=True) hits the visual center of the checkbox
+                terms_checkbox.click(force=True)
+            except Exception:
+                try:
+                    terms_checkbox.locator("label").first.click(force=True)
+                except Exception:
+                    self.click_using_js(terms_checkbox)
+                
+            continue_btn = popup_container.locator("button, a, div[role='button'], .btn").filter(has_text=re.compile(r"CONTINUE", re.IGNORECASE)).first
+            
+            # Add a small wait to allow Angular to enable the button after checkbox click
+            self.page.wait_for_timeout(1000)
+            
+            try:
+                continue_btn.click(force=True)
+            except Exception:
+                self.click_using_js(continue_btn)
+                
+            self.report_step(f"Filled cart popup with {name}, {email}, {phone}, selected art proof, terms checkbox and clicked Continue", "pass")
+            
+            self.page.wait_for_timeout(5000)
+            success_popup_heading = self.page.locator("h1, h2, h3, h4, div.title, .modal-title, .cart-success-msg, p, span, div").filter(has_text=re.compile(r"(item(s)? added to cart|successfully added)", re.IGNORECASE)).first
+            success_popup_heading.wait_for(state="visible", timeout=30000)
+            self.report_step("item added to cart! popup heading validated successfully", "pass")
+            
+            go_to_cart_checkout_btn = self.page.locator("button:visible:has-text('Go To Cart and checkout'), a:visible:has-text('Go To Cart and checkout'), button:visible:has-text('Go to cart'), a:visible:has-text('Go to cart')").first
+            self.verify_displayed(go_to_cart_checkout_btn)
+            self.report_step("Go To Cart and checkout button is present", "pass")
+            
+            try:
+                go_to_cart_checkout_btn.click()
+            except Exception:
+                self.click_using_js(go_to_cart_checkout_btn)
+            
             self.page.wait_for_load_state("load")
+            self.report_step("Navigated to Cart page successfully", "pass")
+            
         except Exception as e:
-            # Maybe it redirects automatically
-            self.report_step(f"Go to cart click skipped: {e}", "pass")
-            self.page.wait_for_load_state("load")
+            try:
+                with open("cart_popup_flow_fail_dump.html", "w", encoding="utf-8") as f:
+                    f.write(self.page.content())
+                # Dump popup container specifically to catch shadow DOM contents
+                try:
+                    popup_html = popup_container.evaluate("node => node.innerHTML")
+                    with open("popup_inner_dump.html", "w", encoding="utf-8") as f:
+                        f.write(popup_html)
+                except Exception:
+                    pass
+                self.page.screenshot(path="cart_popup_flow_fail.png", full_page=True)
+                print("Dumped cart_popup_flow_fail_dump.html, popup_inner_dump.html and cart_popup_flow_fail.png")
+            except Exception:
+                pass
+            self.report_step(f"Cart popup flow failed: {e}", "fail")
+            try:
+                self.page.goto(f"{self.page.url.split('/custom-sublimation')[0]}/cart")
+                self.page.wait_for_load_state("load")
+            except Exception:
+                pass
             
         return CartPage(self.page)

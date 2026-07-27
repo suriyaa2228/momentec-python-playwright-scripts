@@ -96,6 +96,21 @@ class PLPPage(BasePage):
             self.report_step(f"Product grid validation encountered an issue: {e}", "warning")
         return self
 
+    def verify_page_heading(self, expected_text):
+        try:
+            heading = self.page.locator("h1, .page-title").first
+            heading.wait_for(state="visible", timeout=10000)
+            actual_text = heading.inner_text().lower()
+            if expected_text.lower() in actual_text:
+                self.report_step(f"Page heading contains '{expected_text}'", "pass")
+            else:
+                self.report_step(f"Page heading mismatch. Expected '{expected_text}', got '{actual_text}'", "fail")
+                raise AssertionError(f"Expected heading '{expected_text}' not found.")
+        except Exception as e:
+            self.report_step(f"Failed to verify page heading: {e}", "fail")
+            raise e
+        return self
+
     def validate_load_more(self):
         try:
             self.page.evaluate("window.scrollTo(0, document.body.scrollHeight)")

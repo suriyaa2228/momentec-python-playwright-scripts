@@ -88,6 +88,14 @@ class HomePage(BasePage):
         self.report_step("Username icon is clicked", "pass")
         return self
 
+    def click_my_account(self):
+        # Wait for dropdown animation
+        self.page.wait_for_timeout(1000)
+        my_account_link = self.locate_element(Locators.XPATH, "//a[translate(text(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz')='my account'] | //a[contains(text(), 'My Account')] | //a[contains(text(), 'My account')]")
+        self.click(my_account_link)
+        self.report_step("My Account link is clicked", "pass")
+        from python_playwright.pages.my_account_page import MyAccountPage
+        return MyAccountPage(self.page)
     def log_out(self):
         logout_btn = self.locate_element(Locators.ID, "Header_GlobalLogin_loggedInDropdown_SignOut")
         self.click(logout_btn)
@@ -492,6 +500,62 @@ class HomePage(BasePage):
             except Exception as e:
                 self.report_step(f"Validation failed for Mega Menu '{facet}': {e}", "fail")
         return self
+
+    def hover_mega_menu(self, facet):
+        import re
+        pattern = re.compile(f"^\\s*{facet}\\s*$", re.IGNORECASE)
+        
+        # Wait for any link with the exact text to become visible to avoid hidden mobile menu items
+        item = self.page.locator("a").filter(has_text=pattern).locator("visible=true").first
+        try:
+            item.wait_for(state="visible", timeout=10000)
+        except Exception:
+            # Fallback to broader text match if exact fails
+            item = self.page.locator(f"text={facet}").locator("visible=true").first
+            item.wait_for(state="visible", timeout=10000)
+
+        if item.is_visible():
+            item.scroll_into_view_if_needed()
+            item.hover()
+            self.page.wait_for_timeout(1500)
+            mega_menu = self.page.locator(".dropdown-content:visible, .dropdown-menu:visible, .submenu:visible, .megamenu:visible, [class*='dropDown']:visible, .nav-dropdown:visible").first
+            if mega_menu.is_visible():
+                self.report_step(f"Mega Menu for '{facet}' opened successfully", "pass")
+            else:
+                self.report_step(f"Mega Menu for '{facet}' did not open", "fail")
+                raise AssertionError(f"Mega Menu for '{facet}' did not open")
+        else:
+            self.report_step(f"Navigation Item '{facet}' is NOT visible", "fail")
+            raise AssertionError(f"Navigation Item '{facet}' is NOT visible")
+        return self
+
+    def verify_brands_dropdown(self):
+        mega_menu = self.page.locator(".dropdown-content:visible, .dropdown-menu:visible, .submenu:visible, .megamenu:visible, [class*='dropDown']:visible, .nav-dropdown:visible").first
+        text = mega_menu.inner_text().upper()
+        if "OUR BRANDS" in text and "PARTNER BRANDS" in text:
+            self.report_step("OUR BRANDS and PARTNER BRANDS are listed in the dropdown", "pass")
+        else:
+            self.report_step("OUR BRANDS or PARTNER BRANDS not found in the dropdown", "fail")
+            raise AssertionError("Brands dropdown missing sections")
+        return self
+
+    def click_sub_category_in_mega_menu(self, sub_category_name):
+        mega_menu = self.page.locator(".dropdown-content:visible, .dropdown-menu:visible, .submenu:visible, .megamenu:visible, [class*='dropDown']:visible, .nav-dropdown:visible").first
+        import re
+        pattern = re.compile(f"^\\s*{sub_category_name}\\s*$", re.IGNORECASE)
+        link = mega_menu.locator("a").filter(has_text=pattern).first
+        if not link.is_visible():
+            link = mega_menu.locator(f"a:has-text('{sub_category_name}')").first
+        
+        if link.is_visible():
+            link.click()
+            self.page.wait_for_load_state("domcontentloaded")
+            self.report_step(f"Clicked on sub-category '{sub_category_name}'", "pass")
+        else:
+            self.report_step(f"Sub-category '{sub_category_name}' not found", "fail")
+            raise AssertionError(f"Sub-category '{sub_category_name}' not found")
+        from python_playwright.pages.plp_page import PLPPage
+        return PLPPage(self.page)
 
     def validate_direct_navigation_links(self):
         direct_nav_facets = ["NEW", "HEADWEAR", "DECORATION", "SALE", "SUBLIMATION"]

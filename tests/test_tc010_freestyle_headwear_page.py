@@ -74,12 +74,17 @@ class TestTC010FreeStyleHeadwearPage:
         base_url = env_config["url"].rstrip('/')
         headwear_url = f"{base_url}/FreeStyleHeadwearView?catalogId=10601&storeId=10251&langId=-1"
         
-        # Navigate directly as an authenticated user
-        # Avoids repeated Login/Logout
+        # Navigate to home first to stabilize session cookies, then target URL
+        auth_page_tc010.goto(env_config["url"])
+        auth_page_tc010.wait_for_load_state("domcontentloaded")
         auth_page_tc010.goto(headwear_url)
         
         # Wait for page to reach a stable state to prevent flakiness
-        auth_page_tc010.wait_for_load_state("networkidle", timeout=20000)
+        try:
+            auth_page_tc010.wait_for_load_state("networkidle", timeout=15000)
+        except Exception:
+            pass
+        auth_page_tc010.wait_for_load_state("domcontentloaded")
         
         # Assert navigation was successful by checking for a specific element or URL
         expect(auth_page_tc010).to_have_url(re.compile(".*FreeStyleHeadwearView.*", re.IGNORECASE), timeout=15000)

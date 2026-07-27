@@ -74,15 +74,17 @@ class TestTC011FreeStyleDigitalPrint:
         base_url = env_config["url"].rstrip('/')
         digital_print_url = f"{base_url}/FreeStyleCustomPrintView?catalogId=10601&storeId=10251&langId=-1"
         
-        # Navigate directly as an authenticated user
-        # Avoids repeated Login/Logout
+        # Navigate to home first to stabilize session cookies, then target URL
+        auth_page_tc011.goto(env_config["url"])
+        auth_page_tc011.wait_for_load_state("domcontentloaded")
         auth_page_tc011.goto(digital_print_url)
         
         # Wait for page to reach a stable state to prevent flakiness
         try:
-            auth_page_tc011.wait_for_load_state("networkidle", timeout=10000)
+            auth_page_tc011.wait_for_load_state("networkidle", timeout=15000)
         except Exception:
-            auth_page_tc011.wait_for_load_state("domcontentloaded")
+            pass
+        auth_page_tc011.wait_for_load_state("domcontentloaded")
             
         # Assert navigation was successful by checking for a specific element or URL
         expect(auth_page_tc011).to_have_url(re.compile(".*FreeStyleCustomPrintView.*", re.IGNORECASE), timeout=15000)

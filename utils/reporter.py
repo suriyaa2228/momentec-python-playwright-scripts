@@ -64,7 +64,10 @@ class Reporter:
         elif status_upper == "WARNING" and cls._current_test["status"] == "PASS":
             cls._current_test["status"] = "WARNING"
             
-        print(f"[{status_upper}] {description}")
+        try:
+            print(f"[{status_upper}] {description}")
+        except UnicodeEncodeError:
+            print(f"[{status_upper}] {description.encode('ascii', 'replace').decode('ascii')}")
         
         # Match Java's ExtentReports helper which raises RuntimeException on fail
         if status_upper == "FAIL" and raise_error:

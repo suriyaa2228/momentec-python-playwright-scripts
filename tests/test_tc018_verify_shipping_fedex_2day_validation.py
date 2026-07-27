@@ -9,20 +9,14 @@
 # 9. Verify mini shop cart
 # 10. Click Go to Cart
 # 11. Verify Cart heading
-# 12. Click Checkout
-# 13. Verify Shipping and Billing page
-# 14. Click Shipping Methods dropdown
-# 15. Select FedEx Ground shipping method
-# 16. Verify FedEx Ground charge
-# 17. Navigate back to cart
-# 18. Update quantity in cart to "120"
-# 19. Click Checkout
-# 20. Verify Shipping and Billing page
-# 21. Click Shipping Methods dropdown
-# 22. Select FedEx Ground shipping method
-# 23. Verify FedEx Ground is free
-# 24. Navigate back to cart
-# 25. Clear cart
+# 12. Update quantity to "2" in cart
+# 13. Click Checkout
+# 14. Verify Shipping and Billing page
+# 15. Click Shipping Methods dropdown
+# 16. Select FedEx 2Day shipping method
+# 17. Verify FedEx 2Day charge
+# 18. Navigate back to cart
+# 19. Clear cart
 
 import pytest
 import os
@@ -34,7 +28,7 @@ from python_playwright.pages.cart_page import CartPage
 from python_playwright.pages.shipping_billing_page import ShippingAndBillingPage
 
 @pytest.fixture(scope="class")
-def auth_context_tc004(request, env_config, browser_instance):
+def auth_context_tc005(request, env_config, browser_instance):
     """
     Session Reuse (Mandatory): Logs in once and reuses session using Storage State.
     If storage state does not exist, authenticates and creates it.
@@ -43,12 +37,10 @@ def auth_context_tc004(request, env_config, browser_instance):
     username = env_config["username"]
     password = env_config["password"]
     
-    # Store the authenticated state securely
     config_dir = os.path.join(os.path.dirname(__file__), "..", "config")
     os.makedirs(config_dir, exist_ok=True)
-    state_file = os.path.join(config_dir, "tc004_state.json")
+    state_file = os.path.join(config_dir, "tc005_state.json")
 
-    # If the state file doesn't exist, we must authenticate via UI first
     if not os.path.exists(state_file):
         temp_context = browser_instance.new_context(ignore_https_errors=True)
         temp_page = temp_context.new_page()
@@ -58,14 +50,14 @@ def auth_context_tc004(request, env_config, browser_instance):
         home.handle_onetrust_cookie()
         # Clear cart to ensure no backordered items are present
         try:
-            auth_page_tc004.goto(url + "AjaxOrderItemDisplayView?catalogId=10601&langId=-1&storeId=10251")
+            auth_page_tc005.goto(url + "AjaxOrderItemDisplayView?catalogId=10601&langId=-1&storeId=10251")
             from python_playwright.pages.cart_page import CartPage
-            cart = CartPage(auth_page_tc004)
+            cart = CartPage(auth_page_tc005)
             cart.clear_cart()
         except Exception:
             pass
         
-        auth_page_tc004.goto(url)
+        auth_page_tc005.goto(url)
 
         login_page = home.verify_home_page().click_login()
         login_page.enter_username(username) \
@@ -79,7 +71,6 @@ def auth_context_tc004(request, env_config, browser_instance):
         temp_page.close()
         temp_context.close()
 
-    # Create a new context pre-hydrated with the authenticated storage state
     context = browser_instance.new_context(
         storage_state=state_file,
         ignore_https_errors=True
@@ -89,44 +80,40 @@ def auth_context_tc004(request, env_config, browser_instance):
     context.close()
 
 @pytest.fixture(scope="class")
-def auth_page_tc004(auth_context_tc004):
-    """
-    Yields a single page within the authenticated context for the entire class execution.
-    """
-    page = auth_context_tc004.new_page()
+def auth_page_tc005(auth_context_tc005):
+    page = auth_context_tc005.new_page()
     yield page
     page.close()
 
-@pytest.mark.usefixtures("auth_page_tc004")
-class TestTC004VerifyShippingFedexGroundValidation:
-    def test_verify_shipping_charge(self, auth_page_tc004, env_config):
+@pytest.mark.usefixtures("auth_page_tc005")
+class TestTC005VerifyShippingFedex2dayValidation:
+    def test_verify_shipping_charge(self, auth_page_tc005, env_config):
         from python_playwright.utils.reporter import Reporter
-        Reporter.start_test_case("TC004_VerifyShippingFedexGroundValidation", "Verify FEDEX Ground shipping is showing the correct price or not", "Smoke", "SURIYAA")
+        Reporter.start_test_case("TC005_VerifyShippingFedex2dayValidation", "Verify Fedex 2 day shipping method", "Smoke", "SURIYAA")
         
         url = env_config["url"]
         
-        auth_page_tc004.goto(url)
-        home = HomePage(auth_page_tc004, url)
+        auth_page_tc005.goto(url)
+        home = HomePage(auth_page_tc005, url)
         home.handle_onetrust_cookie()
         # Clear cart to ensure no backordered items are present
         try:
-            auth_page_tc004.goto(url + "AjaxOrderItemDisplayView?catalogId=10601&langId=-1&storeId=10251")
+            auth_page_tc005.goto(url + "AjaxOrderItemDisplayView?catalogId=10601&langId=-1&storeId=10251")
             from python_playwright.pages.cart_page import CartPage
-            cart = CartPage(auth_page_tc004)
+            cart = CartPage(auth_page_tc005)
             cart.clear_cart()
         except Exception:
             pass
         
-        auth_page_tc004.goto(url)
+        auth_page_tc005.goto(url)
 
         
-        # Already logged in, just search product
+        # Already logged in, search product
         home.click_brand_logo() \
             .verify_home_page() \
             .search_product("295000")
             
-        # Product detail page actions
-        pdp = PDPPage(auth_page_tc004)
+        pdp = PDPPage(auth_page_tc005)
         pdp.verify_search_product() \
             .select_color_black() \
             .verify_place_holder("295000") \
@@ -136,35 +123,21 @@ class TestTC004VerifyShippingFedexGroundValidation:
             .click_go_to_cart()
             
         # Assert navigation to cart was successful by checking for a specific element or URL
-        expect(auth_page_tc004).to_have_url(re.compile(".*(cart|CartView).*", re.IGNORECASE), timeout=15000)
+        expect(auth_page_tc005).to_have_url(re.compile(".*(cart|CartView|AjaxOrderItemDisplayView).*", re.IGNORECASE), timeout=15000)
             
-        # Go to cart and click checkout
-        cart = CartPage(auth_page_tc004)
+        cart = CartPage(auth_page_tc005)
         cart.verify_cart_heading() \
+            .update_qty_txt_fld("2") \
             .click_checkout()
             
         # Assert navigation to shipping page was successful by checking for a specific element or URL
-        expect(auth_page_tc004).to_have_url(re.compile(".*(checkout|shipping|OrderShipping).*", re.IGNORECASE), timeout=15000)
+        expect(auth_page_tc005).to_have_url(re.compile(".*(checkout|shipping|OrderShipping).*", re.IGNORECASE), timeout=15000)
             
-        # Select FedEx Ground and verify charge (below threshold)
-        shipping = ShippingAndBillingPage(auth_page_tc004)
+        shipping = ShippingAndBillingPage(auth_page_tc005)
         shipping.verify_shipping_billing_page() \
             .click_shipping_methods_dd() \
-            .select_fedex_ground_shipping_method() \
-            .verify_fedex_ground_charge() \
+            .select_fedex_2day() \
+            .verify_fedex_2day_charge() \
             .navigate_back_to_cart()
             
-        # Update quantity in cart to exceed free shipping threshold
-        cart.update_qty_txt_fld("120") \
-            .click_checkout()
-            
-        # Select FedEx Ground and verify FREE shipping
-        shipping.verify_shipping_billing_page() \
-            .click_shipping_methods_dd() \
-            .select_fedex_ground_shipping_method() \
-            .verify_fedex_ground_free() \
-            .navigate_back_to_cart()
-            
-        # Clear cart for cleanliness
         cart.clear_cart()
-
