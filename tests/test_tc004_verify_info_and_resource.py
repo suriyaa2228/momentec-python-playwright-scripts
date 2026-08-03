@@ -85,6 +85,21 @@ class TestTC007VerifyInfoAndResource:
         name = method.__name__.replace("test_", "").replace("_", " ").title()
         Reporter.start_test_case(f"TC007_{name}", "Verify Info & Resources link category details", "Smoke", "SURIYAA")
 
+    @pytest.fixture(autouse=True)
+    def cleanup_browser_state(self, auth_page_tc007, env_config):
+        yield
+        context = auth_page_tc007.context
+        # Close any additional tabs opened during the test
+        while len(context.pages) > 1:
+            context.pages[-1].close()
+        
+        # Ensure the main tab is on the home page for the next test
+        main_page = context.pages[0]
+        main_page.bring_to_front()
+        # Navigate to home if we are not already there (ignoring trailing slashes)
+        if env_config["url"].rstrip("/") not in main_page.url:
+            main_page.goto(env_config["url"])
+
     def test_01_click_info_and_resource_link(self, auth_page_tc007, env_config):
         url = env_config["url"]
         
@@ -138,16 +153,10 @@ class TestTC007VerifyInfoAndResource:
     def test_11_flyer_catalog_media_page(self, auth_page_tc007, env_config):
         home = HomePage(auth_page_tc007, env_config["url"])
         home.click_flyer_catalog_media_page_link().verify_flyer_catalog_media_page_link()
-        home.click_brand_logo() \
-            .verify_home_page() \
-            .click_info_and_resources()
 
     def test_12_on_demand_solution_page(self, auth_page_tc007, env_config):
         home = HomePage(auth_page_tc007, env_config["url"])
         home.click_on_demand_solution_page_link().verify_on_demand_solution_page_link()
-        home.click_brand_logo() \
-            .verify_home_page() \
-            .click_info_and_resources()
 
     def test_13_product_info_page(self, auth_page_tc007, env_config):
         home = HomePage(auth_page_tc007, env_config["url"])
@@ -156,9 +165,6 @@ class TestTC007VerifyInfoAndResource:
     def test_14_samples_page(self, auth_page_tc007, env_config):
         home = HomePage(auth_page_tc007, env_config["url"])
         home.click_samples_page_link().verify_click_samples_page_link()
-        home.click_brand_logo() \
-            .verify_home_page() \
-            .click_info_and_resources()
 
     def test_15_apparel_sublimation_page(self, auth_page_tc007, env_config):
         home = HomePage(auth_page_tc007, env_config["url"])
@@ -191,9 +197,6 @@ class TestTC007VerifyInfoAndResource:
     def test_22_api_documentation_page(self, auth_page_tc007, env_config):
         home = HomePage(auth_page_tc007, env_config["url"])
         home.click_api_documentation_page_link().verify_api_documentation_page_link()
-        home.click_brand_logo() \
-            .verify_home_page() \
-            .click_info_and_resources()
 
     def test_23_native_cart_demo_page(self, auth_page_tc007, env_config):
         home = HomePage(auth_page_tc007, env_config["url"])

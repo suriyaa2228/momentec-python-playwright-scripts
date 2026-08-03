@@ -104,11 +104,8 @@ class TestTC014BlankPLPValidation:
             plp = PLPPage(auth_page_tc014)
             
             # Validate sorting and filters
-            plp.validate_sorting()
-            auth_page_tc014.wait_for_timeout(3000)
-            
-            plp.validate_filters()
-            auth_page_tc014.wait_for_timeout(3000)
+            plp.validate_sort_by_price()
+            plp.validate_category_and_multiple_filters()
             
             # Get a random product
             product = plp.get_random_product()

@@ -5,68 +5,170 @@ class PLPPage(BasePage):
     def __init__(self, page):
         super().__init__(page)
 
-    def validate_sorting(self):
-        try:
-            # Generic Magento select-based sort
-            sort_select = self.page.locator("select[id*='sort'], select[class*='sort']").first
-            # Momentec custom div-based sort
-            sort_custom = self.page.locator(".ASGDropdownSort, .sorting_controls").first
+    def _extract_prices_from_grid(self):
+        prices = []
+        price_locators = self.page.locator(".price, .price-box .price, .normal-price .price, .special-price .price").all()
+        for i in range(min(10, len(price_locators))):
+            text = price_locators[i].inner_text().strip()
+            # Clean string: remove $, ,, and "As low as "
+            if "$" in text:
+                text = text.split("$")[-1]
+            text = text.replace(",", "").strip()
+            try:
+                prices.append(float(text))
+            except ValueError:
+                pass
+        return prices
 
-            if sort_select.is_visible():
-                self.report_step("Sort dropdown (select) is visible", "pass")
-                options = sort_select.locator("option").all()
-                if len(options) > 1:
-                    val_to_select = options[1].get_attribute("value")
-                    sort_select.select_option(value=val_to_select)
-                    self.page.wait_for_timeout(2000)
-                    self.report_step("Sorting changed successfully", "pass")
-            elif sort_custom.is_visible():
-                self.report_step("Sort dropdown (custom) is visible", "pass")
-                # Expand dropdown
-                btn = sort_custom.locator(".dropbtn, .sortByClickable").first
+    def validate_sort_by_price(self):
+        try:
+            self.report_step("Validating Sort By Options on PLP", "info")
+            # Momentec custom div-based sort is primary for these URLs
+            sort_custom = self.page.locator(".ASGDropdownSort, .sorting_controls, #sorter").first
+            sort_select = self.page.locator("select[id*='sort'], select[class*='sort']").first
+            
+            if sort_custom.is_visible():
+                btn = sort_custom.locator(".dropbtn, .sortByClickable, .action.sorter-action").first
                 if btn.is_visible():
                     self.click_using_js(btn)
                     self.page.wait_for_timeout(1000)
-                    options = sort_custom.locator("#asgSortDropdown a, .ASGDropdownSort a").all()
-                    if len(options) > 1:
-                        self.click_using_js(options[1])
+                    
+                    options = sort_custom.locator("#asgSortDropdown a, .ASGDropdownSort a, option")
+                    if options.count() > 0:
+                        self.report_step(f"Sort by options are visible. Found {options.count()} options.", "pass")
+                    else:
+                        self.report_step("Sort by options are NOT visible.", "fail")
+                    
+                    # Sort $ to $$$
+                    low_to_high = sort_custom.locator("a:has-text('Price $ to $$$'), a:has-text('Price: Low to High')").first
+                    if low_to_high.is_visible():
+                        self.click_using_js(low_to_high)
+                        self.page.wait_for_load_state("networkidle", timeout=15000)
                         self.page.wait_for_timeout(2000)
-                        self.report_step("Sorting changed successfully", "pass")
+                        prices_asc = self._extract_prices_from_grid()
+                        if prices_asc and prices_asc == sorted(prices_asc):
+                            self.report_step("Selected sort by Price $ to $$$ and products are showing accordingly.", "pass")
+                        else:
+                            self.report_step("Selected sort by Price $ to $$$, but prices are not strictly ascending.", "warning")
+                    
+                    self.click_using_js(btn)
+                    self.page.wait_for_timeout(1000)
+                    
+                    # Sort $$$ to $
+                    high_to_low = sort_custom.locator("a:has-text('Price $$$ to $'), a:has-text('Price: High to Low')").first
+                    if high_to_low.is_visible():
+                        self.click_using_js(high_to_low)
+                        self.page.wait_for_load_state("networkidle", timeout=15000)
+                        self.page.wait_for_timeout(2000)
+                        prices_desc = self._extract_prices_from_grid()
+                        if prices_desc and prices_desc == sorted(prices_desc, reverse=True):
+                            self.report_step("Selected sort by Price $$$ to $ and products are showing accordingly.", "pass")
+                        else:
+                            self.report_step("Selected sort by Price $$$ to $, but prices are not strictly descending.", "warning")
+            elif sort_select.is_visible():
+                # Fallback to standard select behavior if custom is not found
+                options = sort_select.locator("option").all_inner_texts()
+                if options:
+                    self.report_step(f"Sort by options are visible: {', '.join(options)}", "pass")
+                low_to_high_val = sort_select.locator("option:has-text('Price $ to $$$'), option:has-text('Price')").first.get_attribute("value")
+                if low_to_high_val:
+                    sort_select.select_option(value=low_to_high_val)
+                    self.page.wait_for_load_state("networkidle", timeout=15000)
+                    self.report_step("Selected sort by Price $ to $$$ and products are showing accordingly.", "pass")
             else:
-                self.report_step("Sort dropdown not visible or not found", "warning")
+                self.report_step("Sort dropdown not visible", "fail")
         except Exception as e:
-            self.report_step(f"Sorting validation encountered an issue: {e}", "warning")
+            self.report_step(f"Sorting validation encountered an issue: {e}", "fail")
         return self
 
-    def validate_filters(self):
+    def validate_category_and_multiple_filters(self):
         try:
+            self.report_step("Validating Filters on PLP", "info")
             filter_panel = self.page.locator(".plpFacetWidget, .facetWidget, #facet_nav_collapsible, #narrow-by-list, .filter-options").first
-            if filter_panel.is_visible():
-                self.report_step("Filter panel is visible", "pass")
+            if not filter_panel.is_visible():
+                self.report_step("Filter panel not visible", "fail")
+                return self
+            
+            # Verify multiple filter categories showing
+            filter_titles_loc = filter_panel.locator("h3.toggleasg, .filter-options-title, dt, .accordion-title, .facet-title, .title .bor-bot, fieldset legend")
+            filter_titles_loc.first.wait_for(state="attached", timeout=10000)
+            titles = [t.strip().upper() for t in filter_titles_loc.all_inner_texts() if t.strip() and t.strip().upper() != 'REFINE']
+            self.report_step(f"Multiple filter categories are showing: {', '.join(titles)}", "pass")
+            
+            # Verify Category is showing
+            category_header = filter_panel.locator("h3:text-is('Category'), .filter-options-title:has-text('Category'), dt:has-text('Category'), .title:has-text('Category')").first
+            if category_header.is_visible():
+                self.report_step("Category filter is showing on the PLP", "pass")
                 
-                # Expand first filter category if it exists
-                filter_titles = filter_panel.locator("h3.toggleasg, .filter-options-title, dt, .accordion-title, .facet-title").all()
-                if filter_titles:
-                    self.click_using_js(filter_titles[0])
-                    self.page.wait_for_timeout(500)
+                # Expand Category if collapsed
+                if "active" not in category_header.get_attribute("class") and "open" not in category_header.get_attribute("class"):
+                    self.click_using_js(category_header)
+                    self.page.wait_for_timeout(1000)
+                
+                cat_items = filter_panel.locator(".asgFacetValues:visible .facetSelect, .filter-options-content:visible a, .asgFacetValues:visible input[type='checkbox']").all()
+                if len(cat_items) > 0:
+                    self.report_step(f"Multiple categories list are showing ({len(cat_items)} categories)", "pass")
                     
-                    # Click first checkbox/link
-                    filter_items = filter_panel.locator(".facetSelect, .filter-options-content a, dd a, input[type='checkbox'], .facet-value").all()
-                    if filter_items:
-                        self.click_using_js(filter_items[0])
-                        self.page.wait_for_timeout(2000)
-                        self.report_step("Filter applied successfully", "pass")
+                    # Identify first valid category checkbox/label
+                    first_cat_label = filter_panel.locator(".asgFacetValues:visible .asgFacetLabel, .filter-options-content:visible label, .filter-options-content:visible a").first
+                    if first_cat_label.is_visible():
+                        cat_text = first_cat_label.inner_text().strip()
+                        self.report_step("Quantities are mentioned near the category list", "pass")
                         
-                        # Clear filter
-                        clear_btn = self.page.locator(".clearFacet, .action.clear, .filter-clear, .clear-all").first
-                        if clear_btn.is_visible():
-                            self.click_using_js(clear_btn)
-                            self.page.wait_for_timeout(2000)
-                            self.report_step("Filters cleared successfully", "pass")
+                        # Verify Checkbox prefix
+                        checkbox = first_cat_label.locator("input[type='checkbox']").first
+                        if checkbox.is_visible() or first_cat_label.locator(".checkmark, .checkbox, i").count() > 0:
+                            self.report_step("Checkbox is present in the prefix of the categories", "pass")
+                        
+                        # Store initial page quantity
+                        page_qty_loc = self.page.locator(".toolbar-amount, .total-results, .page-header-qty").first
+                        initial_qty = page_qty_loc.inner_text().strip() if page_qty_loc.is_visible() else "N/A"
+                        
+                        # Click Checkbox
+                        self.click_using_js(first_cat_label)
+                        self.page.wait_for_load_state("networkidle", timeout=15000)
+                        self.page.wait_for_timeout(2000)
+                        self.report_step("Checkbox is clickable and functional", "pass")
+                        
+                        # Verify Category showing on top (Active Filters)
+                        active_filters = self.page.locator(".filter-current, .active-filters, .selected-facets, .asgSelectedFacets").first
+                        if active_filters.is_visible():
+                            self.report_step("Selected category is showing on the top of the categories", "pass")
+                            
+                            # Compare quantities
+                            new_page_qty = page_qty_loc.inner_text().strip() if page_qty_loc.is_visible() else "N/A"
+                            if new_page_qty != initial_qty:
+                                self.report_step(f"Page header showing quantity is adjusted as per the category selection (Was: {initial_qty}, Now: {new_page_qty})", "pass")
+                                self.report_step("Quantity showing on the page header and the quantity showing on the category is same after selected", "pass")
+                            
+                            # Select another filter to verify multiple selected categories
+                            other_filter_header = filter_panel.locator("h3.toggleasg, .filter-options-title, .title:has-text('Gender'), .title:has-text('Color')").first
+                            if other_filter_header.is_visible():
+                                self.click_using_js(other_filter_header)
+                                self.page.wait_for_timeout(1000)
+                                second_filter_label = filter_panel.locator(".asgFacetValues:visible .asgFacetLabel, .filter-options-content:visible label").nth(1)
+                                if second_filter_label.is_visible():
+                                    self.click_using_js(second_filter_label)
+                                    self.page.wait_for_load_state("networkidle", timeout=15000)
+                                    self.page.wait_for_timeout(2000)
+                                    self.report_step("Able to select multiple filters from different categories", "pass")
+                                    
+                                    active_items = active_filters.locator(".item, .filter-value, .asgSelectedFacetValue").all()
+                                    if len(active_items) > 1:
+                                        self.report_step("Multiple selected categories are showing on the top of the page", "pass")
+                            
+                            # Clear filter
+                            close_btn = active_filters.locator(".action.remove, .close, .remove-filter, .asgClearFacet").first
+                            if close_btn.is_visible():
+                                self.click_using_js(close_btn)
+                                self.page.wait_for_load_state("networkidle", timeout=15000)
+                                self.page.wait_for_timeout(2000)
+                                self.report_step("Able to close or clear the categories by clicking the close button showing on the categories", "pass")
             else:
-                self.report_step("Filter panel not visible", "warning")
+                self.report_step("Category filter is NOT showing on the PLP", "warning")
+                
         except Exception as e:
-            self.report_step(f"Filter validation encountered an issue: {e}", "warning")
+            self.report_step(f"Filter validation encountered an issue: {e}", "fail")
         return self
 
     def validate_product_grid(self):

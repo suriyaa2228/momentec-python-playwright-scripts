@@ -58,14 +58,14 @@ def auth_context_tc004(request, env_config, browser_instance):
         home.handle_onetrust_cookie()
         # Clear cart to ensure no backordered items are present
         try:
-            auth_page_tc004.goto(url + "AjaxOrderItemDisplayView?catalogId=10601&langId=-1&storeId=10251")
+            temp_page.goto(url + "AjaxOrderItemDisplayView?catalogId=10601&langId=-1&storeId=10251")
             from python_playwright.pages.cart_page import CartPage
-            cart = CartPage(auth_page_tc004)
+            cart = CartPage(temp_page)
             cart.clear_cart()
         except Exception:
             pass
         
-        auth_page_tc004.goto(url)
+        temp_page.goto(url)
 
         login_page = home.verify_home_page().click_login()
         login_page.enter_username(username) \

@@ -28,7 +28,10 @@ class ShippingAndBillingPage(BasePage):
         btn.wait_for(state="visible", timeout=30000)
         self.click(btn)
         self.trigger_select_change()
-        self.page.wait_for_timeout(4000)
+        try:
+            self.page.wait_for_load_state("networkidle", timeout=15000)
+        except Exception:
+            pass
         self.report_step("FEDEX Ground Shipping Method is selected Successfully", "pass")
         return self
 
@@ -76,7 +79,6 @@ class ShippingAndBillingPage(BasePage):
         return shipping_element
 
     def verify_fedex_ground_charge(self):
-        self.refresh_page()
         free_shipping_threshold = 150.00
         expected_below_threshold = 15.00
 
@@ -111,7 +113,6 @@ class ShippingAndBillingPage(BasePage):
         return self
 
     def verify_fedex_ground_free(self):
-        self.refresh_page()
         free_shipping_threshold = 150.00
 
         # Order Total
@@ -150,10 +151,8 @@ class ShippingAndBillingPage(BasePage):
         btn.wait_for(state="visible", timeout=10000)
         self.click_using_js(btn)
         
-        # Wait for the next page to load by checking for the Place Order button or the Review page title
         try:
-            self.page.wait_for_timeout(3000)
-            self.page.wait_for_selector("//div[contains(text(),'PLACE ORDER')]", timeout=15000)
+            self.page.wait_for_load_state("networkidle", timeout=15000)
         except Exception:
             pass
             
@@ -178,12 +177,14 @@ class ShippingAndBillingPage(BasePage):
         btn.wait_for(state="visible", timeout=30000)
         self.click(btn)
         self.trigger_select_change()
-        self.page.wait_for_timeout(4000)
+        try:
+            self.page.wait_for_load_state("networkidle", timeout=15000)
+        except Exception:
+            pass
         self.report_step("FEDEX 2 Day Shipping Method is selected Successfully", "pass")
         return self
 
     def verify_fedex_2day_charge(self):
-        self.refresh_page()
         expected_charge = 25.00
         element = self._get_shipping_element()
         charge = self.get_element_numeric(element)
@@ -204,7 +205,6 @@ class ShippingAndBillingPage(BasePage):
         return self
 
     def verify_fedex_3day(self):
-        self.refresh_page()
         expected_charge = 14.20
         element = self._get_shipping_element()
         charge = self.get_element_numeric(element)
@@ -225,7 +225,6 @@ class ShippingAndBillingPage(BasePage):
         return self
 
     def verify_fedex_2day_am(self):
-        self.refresh_page()
         expected_charge = 25.00
         element = self._get_shipping_element()
         charge = self.get_element_numeric(element)
@@ -246,7 +245,6 @@ class ShippingAndBillingPage(BasePage):
         return self
 
     def verify_fedex_int_exp_2day(self):
-        self.refresh_page()
         expected_charge = 15.00
         element = self._get_shipping_element()
         charge = self.get_element_numeric(element)
@@ -263,7 +261,10 @@ class ShippingAndBillingPage(BasePage):
         btn.wait_for(state="visible", timeout=30000)
         self.click(btn)
         self.trigger_select_change()
-        self.page.wait_for_timeout(4000)
+        try:
+            self.page.wait_for_load_state("networkidle", timeout=15000)
+        except Exception:
+            pass
         self.report_step("FEDEX Next Day Air Shipping Method is selected Successfully", "pass")
         return self
 
@@ -273,12 +274,14 @@ class ShippingAndBillingPage(BasePage):
         btn.wait_for(state="visible", timeout=30000)
         self.click(btn)
         self.trigger_select_change()
-        self.page.wait_for_timeout(4000)
+        try:
+            self.page.wait_for_load_state("networkidle", timeout=15000)
+        except Exception:
+            pass
         self.report_step("FEDEX Next Day AM Shipping Method is selected Successfully", "pass")
         return self
 
     def verify_fedex_next_day_air(self):
-        self.refresh_page()
         expected_charge = 35.00
         element = self._get_shipping_element()
         charge = self.get_element_numeric(element)

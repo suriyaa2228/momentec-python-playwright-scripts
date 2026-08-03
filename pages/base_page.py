@@ -267,8 +267,12 @@ class BasePage:
         return self.page
 
     def switch_to_home_page(self):
-        # Mimic Java switchToHomePage
-        self.switch_to_tab("Wholesale Sports Apparel")
+        # Mimic Java switchToHomePage by switching to the main tab
+        # We don't search by title because the main tab might have navigated away
+        if len(self.page.context.pages) > 0:
+            self.page = self.page.context.pages[0]
+            self.page.bring_to_front()
+        return self.page
 
     # Alert wrappers (handling Javascript Dialogs in Playwright)
     def switch_to_alert(self):
