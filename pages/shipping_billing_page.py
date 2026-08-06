@@ -177,8 +177,17 @@ class ShippingAndBillingPage(BasePage):
         btn.wait_for(state="visible", timeout=30000)
         self.click(btn)
         self.trigger_select_change()
+        
+        # Explicitly wait for the shipping element to update its price to 25.00
+        # to prevent reading the default Ground shipping price ($15.00) on slower network runs.
         try:
             self.page.wait_for_load_state("networkidle", timeout=15000)
+            element = self._get_shipping_element()
+            # Wait for text to change to 25.00
+            for _ in range(15):
+                if self.get_element_numeric(element) == 25.00:
+                    break
+                self.page.wait_for_timeout(1000)
         except Exception:
             pass
         self.report_step("FEDEX 2 Day Shipping Method is selected Successfully", "pass")

@@ -172,15 +172,8 @@ class BasePage:
         element.select_option(index=index)
 
     def verify_displayed(self, element, timeout=15000):
-        try:
-            expect(element).to_be_visible(timeout=timeout)
-            return True
-        except Exception:
-            print(f"[RETRY] Element not displayed within {timeout}ms. Refreshing page and retrying...")
-            self.refresh_page()
-            self.page.wait_for_timeout(2000)
-            expect(element).to_be_visible(timeout=timeout)
-            return True
+        expect(element).to_be_visible(timeout=timeout)
+        return True
 
     def verify_disappeared(self, element):
         expect(element).to_be_hidden(timeout=15000)
