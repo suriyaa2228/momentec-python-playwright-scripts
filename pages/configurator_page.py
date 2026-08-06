@@ -274,6 +274,18 @@ class ConfiguratorPage(BasePage):
             except Exception as e:
                 self.report_step(f"Failed during file chooser or upload: {e}", "warning")
 
+            # Click the uploaded image to apply it to the garment
+            try:
+                self.page.wait_for_timeout(2000)
+                # Locate the first image in the art library or a blob image
+                art_image = self.page.locator(".art-library img, .library img, .art-item, img[src*='blob']").first
+                art_image.wait_for(state="visible", timeout=5000)
+                art_image.click(force=True)
+                self.report_step("Selected uploaded art from the gallery", "info")
+                self.page.wait_for_timeout(2000)
+            except Exception as e:
+                self.report_step(f"Failed to click the uploaded image in the gallery: {e}", "warning")
+
             # click done
             done_btn = self.page.locator("button:has-text('Done'), button:has-text('Apply')").locator("visible=true").first
             try:
@@ -287,6 +299,36 @@ class ConfiguratorPage(BasePage):
             self.report_step(f"Add custom art skipped or failed: {e}", "warning")
         return self
 
+    def verify_custom_art_showing(self):
+        try:
+            self.page.wait_for_timeout(3000) # Give it time to render on 3D model
+            try:
+                self.page.wait_for_load_state("networkidle", timeout=10000)
+            except Exception:
+                pass
+            
+            # Wait for loaders to disappear if any
+            loaders = self.page.locator(".loader, .spinner, .loading")
+            if loaders.count() > 0:
+                try:
+                    loaders.first.wait_for(state="hidden", timeout=15000)
+                except Exception:
+                    pass
+
+            # Assert 3D image is present and visible
+            self.verify_3d_image_showing()
+            
+            # Assert no error popups are present
+            error_popup = self.page.locator("text=/error|failed/i").locator("visible=true").first
+            if error_popup.count() > 0:
+                self.report_step("Error popup found while verifying art upload", "fail")
+                raise Exception("Error popup found after art upload")
+                
+            self.report_step("Verified uploaded custom art is showing", "pass")
+        except Exception as e:
+            self.report_step(f"Verification of uploaded art failed: {e}", "warning")
+            raise
+        return self
 
     def click_next_roster(self):
         btn = self.page.locator("a.rosterTab, button:has-text('Next: Roster')").locator("visible=true").first

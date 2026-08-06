@@ -107,10 +107,12 @@ class TestTC023SublimationOrderPlacing:
         # 14. select location and add .png image
         png_path = os.path.join(os.path.dirname(__file__), "..", "test_data", "basketball_player.png")
         configurator_page.add_custom_art_upload(location="Left Sleeve", file_path=png_path)
+        configurator_page.verify_custom_art_showing()
         
         # 15. select another location and add .svg image
         svg_path = os.path.join(os.path.dirname(__file__), "..", "test_data", "mascot.svg")
         configurator_page.add_custom_art_upload(location="Right Sleeve", file_path=svg_path)
+        configurator_page.verify_custom_art_showing()
         
         # 16. Click Next Roster
         configurator_page.click_next_roster()
